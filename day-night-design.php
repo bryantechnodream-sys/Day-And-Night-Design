@@ -33,9 +33,23 @@ class DayAndNightDesign
         $timeFrom = get_option('timeFrom');
         $timeTo = get_option('timeTo');
         if ($this->isTimeBetween($timeFrom, $timeTo)) {
-            add_filter('body_class', array($this, 'addClass'));
+            add_filter('body_class', array($this, 'dynamicBodyClass'));
         }
     }
+	
+	public function dynamicBodyClass($classes)
+{
+    $timeFrom = get_option('timeFrom');
+    $timeTo = get_option('timeTo');
+
+    if ($this->isTimeBetween($timeFrom, $timeTo)) {
+        $classes[] = 'v-mode-night';
+    } else {
+        $classes[] = 'v-mode-day';
+    }
+
+    return $classes;
+}
 
     function resetAllSettings()
     {
@@ -145,7 +159,7 @@ class DayAndNightDesign
 
     function isTimeBetween($start_time, $end_time) // check time is in between start and end time parameters
     {
-        $current_time = date('H:i');
+        $current_time = current_time('H:i');
         if ($end_time < $start_time) { // Check if the end time is before the start time (indicating an overnight time range)
             return ($current_time >= $start_time || $current_time <= $end_time);
         } else {
@@ -167,21 +181,26 @@ class DayAndNightDesign
 
     public function setDayAndNightDesignActions()
     {
+        // Don't run on admin or Elementor editor
+        if (is_admin() || isset($_GET['elementor-preview'])) {
+            return;
+        }
+
         $isDayAndNightEnabled = get_option('set_homepage_enabled', true);
         $timeFrom = get_option('timeFrom');
         $timeTo = get_option('timeTo');
 
-        if (!$isDayAndNightEnabled) {
-            $default_front_page = get_option('default_front_page', 0);
-            if ($default_front_page) {
-                update_option('show_on_front', 'page');
-                update_option('page_on_front', $default_front_page);
-            } else {
-                update_option('show_on_front', 'posts');
-                update_option('page_on_front', 0);
-            }
-            return;
-        }
+//         if (!$isDayAndNightEnabled) {
+//             $default_front_page = get_option('default_front_page', 0);
+//             if ($default_front_page) {
+//                 update_option('show_on_front', 'page');
+//                 update_option('page_on_front', $default_front_page);
+//             } else {
+//                 update_option('show_on_front', 'posts');
+//                 update_option('page_on_front', 0);
+//             }
+//             return;
+//         }
 
         if ($isDayAndNightEnabled) {
             $page_id = get_the_ID();
@@ -193,7 +212,7 @@ class DayAndNightDesign
 
                     $night_page_id = get_post_meta($page_id, 'pageNight', true);
                     if ($night_page_id) {
-                        wp_redirect(get_permalink($night_page_id), 301);
+                        wp_redirect(get_permalink($night_page_id), 302);
                         exit;
                     }
                 }
@@ -205,13 +224,14 @@ class DayAndNightDesign
 
                     $day_page_id = get_post_meta($page_id, 'pageDay', true);
                     if ($day_page_id) {
-                        wp_redirect(get_permalink($day_page_id), 301);
+                        wp_redirect(get_permalink($day_page_id), 302);
                         exit;
                     }
                 }
             }
         }
     }
+
 
     public function addClass($classes)
     {
@@ -243,6 +263,7 @@ class DayAndNightDesign
 
         $dayArgs = array(
             'post_type' => 'page',
+			'posts_per_page' => -1,
             'meta_query' => array(
                 array(
                     'key' => '_custom_field',
@@ -254,6 +275,7 @@ class DayAndNightDesign
 
         $nightArgs = array(
             'post_type' => 'page',
+			'posts_per_page' => -1,
             'meta_query' => array(
                 array(
                     'key' => '_custom_field',
@@ -344,11 +366,22 @@ class DayAndNightDesign
             <?= settings_errors() ?>
             <h3 style="color:#ffffff;">Introduction</h3>
             <p class="v-description">
+                <?php echo "The time is " . date("h:i:s A"); ?> <br/>
                 The Day and Night Design allows website owners to create a dynamic website design that changes with the time of day. It automatically switches between a bright, bold color scheme for daytime and a darker, muted palette for nighttime. This is ideal for businesses with different audiences at different times of day, such as restaurants or nightclubs, and creates a unique and engaging website design.
             </p>
             <h4 style="color:#ffffff;font-size:20px;">Timezone:
                 <?php
                 $timezone = get_option('timezone_string');
+                if (!$timezone) {
+                    $offset = get_option('gmt_offset');
+                    $timezone = timezone_name_from_abbr('', $offset * 3600, 0);
+                    // Fallback if still false
+                    if (!$timezone) {
+                        $timezone = 'UTC';
+                    }
+                }
+//                 date_default_timezone_set($timezone);
+
                 if ($timezone) {
                     echo "<small style='color:yellow;'>" . $timezone . "</small>";
                 } else {
